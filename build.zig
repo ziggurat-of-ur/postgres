@@ -7,6 +7,8 @@ pub fn build(b: *Builder) void {
     const exe = b.addExecutable("zsql", "src/zsql/main.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
+    exe.addPackagePath("clap", "deps/zig-clap/clap.zig");
+    exe.addPackagePath("postgres", "postgres.zig");
     exe.install();
 
     const run_cmd = exe.run();
