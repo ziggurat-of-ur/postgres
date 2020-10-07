@@ -1,19 +1,18 @@
 // std
 const std = @import("std");
 const mem = std.mem;
-const debug = std.debug;
 
 // clap for CLI args
 const clap = @import("clap");
 
 // postgres wrapper
-const pg = @import("postgres");
+const pq = @import("postgres");
 
-pub fn main() anyerror!void {
-    debug.print("Using PG wrapper {}\n", .{pg.version});
+/// getParams constructs the PG connection params from the CLI args
+fn getParams() anyerror!pq.ConnectionParams {
+    var conn = pq.ConnectionParams{};
 
-    // First we specify what parameters our program can take.
-    // We can use `parseParam` to parse a string to a `Param(Help)`
+    // Parse the CLI args into the ConnectionParams
     const params = comptime [_]clap.Param(clap.Help){
         clap.parseParam("-h, --host <STR>         Set hostname, default = localhost.") catch unreachable,
         clap.parseParam("-U, --username <STR>     Set username, default = postgres.") catch unreachable,
@@ -23,36 +22,36 @@ pub fn main() anyerror!void {
         },
     };
 
-    var pgArgs = pg.connection{};
     var args = try clap.parse(clap.Help, &params, std.heap.page_allocator);
     defer args.deinit();
 
-    if (args.option("--host")) |hostname| {
-        debug.warn("--host {}\n", .{hostname});
-        pgArgs.hostname = hostname;
+    if (args.option("-h")) |hostname| {
+        conn.hostname = hostname;
     }
     if (args.option("--username")) |username| {
-        debug.warn("--username = {}\n", .{username});
-        pgArgs.username = username;
+        conn.username = username;
     }
     if (args.option("--dbname")) |dbname| {
-        debug.warn("--dbname = {}\n", .{dbname});
-        pgArgs.dbname = dbname;
+        conn.dbname = dbname;
     }
-    for (args.positionals()) |pos|
-        debug.warn("{}\n", .{pos});
-
-    debug.print("args {}\n", .{pgArgs});
-    try cmdLoop();
+    return conn;
 }
 
-fn cmdLoop() anyerror!void {
+pub fn main() anyerror!void {
+    std.debug.print("Using PG wrapper {}\n", .{pq.version});
+
+    var params = try getParams();
+    var dsn = try params.dsn();
+    var db = try pq.connect(dsn);
+    std.debug.print("DB connection {}\n", .{db});
+
     const stdout = std.io.getStdOut();
     const stdin = std.io.getStdIn();
     var buffer: [1024]u8 = undefined;
 
     // just loop forever, getting a command, executing it, and then quitting when the user types \q
     while (true) {
+        mem.set(u8, buffer[0..], 0x00);
         try stdout.writer().print("ZSQL: ", .{});
 
         const raw_input = stdin.reader().readUntilDelimiterOrEof(buffer[0..], '\n') catch |err| {
@@ -63,6 +62,7 @@ fn cmdLoop() anyerror!void {
         if (mem.eql(u8, input, "\\q")) {
             return;
         }
-        std.debug.print("Error: Unknown command '{}'\n", .{input});
+        std.debug.print("Exec command '{}'\n", .{input});
+        db.exec(input);
     }
 }
