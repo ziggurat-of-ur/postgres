@@ -8,9 +8,7 @@ pub const version = "0.0.1";
 pub const string = []const u8;
 pub const c_string = [*:0]const u8;
 
-pub const Connection = struct {
-    const Impl = @Type(.Opaque);
-    impl: *Impl,
+pub const Connection = opaque {
     pub fn exec(self: *Connection, cmd: string) void {
         std.debug.print("Exec: {}\n", .{cmd});
     }
@@ -30,9 +28,11 @@ pub const ConnectionParams = struct {
     }
 };
 
-pub fn connect(dsn: c_string) anyerror!Connection {
+pub fn connect(dsn: c_string) anyerror!*Connection {
     var conn = pq.PQconnectdb(dsn);
     const allocator = std.heap.page_allocator;
     const cx = try allocator.alloc(Connection, 1);
-    return cx[0];
+    cx[0].impl = &conn;
+    std.debug.print("cx = {} {}", .{ cx, cx[0] });
+    return &cx[0];
 }
