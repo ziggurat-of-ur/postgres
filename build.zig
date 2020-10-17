@@ -9,6 +9,7 @@ pub fn build(b: *Builder) void {
     exe.setBuildMode(mode);
     exe.addPackagePath("clap", "deps/zig-clap/clap.zig");
     exe.addPackagePath("postgres", "postgres.zig");
+    exe.addPackagePath("cmd", "src/cmd/cmd.zig");
     exe.linkSystemLibrary("pq");
     exe.install();
 

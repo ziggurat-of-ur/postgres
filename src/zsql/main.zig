@@ -1,9 +1,12 @@
 // std
 const std = @import("std");
-const mem = std.mem;
+const cstr = std.cstr;
 
 // clap for CLI args
 const clap = @import("clap");
+
+// cmd line getter
+const cmd = @import("cmd");
 
 // postgres wrapper
 const pq = @import("postgres");
@@ -25,7 +28,7 @@ fn getParams() anyerror!pq.ConnectionParams {
     var args = try clap.parse(clap.Help, &params, std.heap.page_allocator);
     defer args.deinit();
 
-    if (args.option("-h")) |hostname| {
+    if (args.option("--host")) |hostname| {
         conn.hostname = hostname;
     }
     if (args.option("--username")) |username| {
@@ -42,27 +45,24 @@ pub fn main() anyerror!void {
 
     var params = try getParams();
     var dsn = try params.dsn();
-    var db = try pq.connect(dsn);
-    std.debug.print("DB connection {}\n", .{db});
-
-    const stdout = std.io.getStdOut();
-    const stdin = std.io.getStdIn();
-    var buffer: [1024]u8 = undefined;
+    var db = pq.connect(dsn);
+    var db_name = db.name();
 
     // just loop forever, getting a command, executing it, and then quitting when the user types \q
     while (true) {
-        mem.set(u8, buffer[0..], 0x00);
-        try stdout.writer().print("ZSQL: ", .{});
+        var input = try cmd.prompt("ZSQL ({}): ", .{db.name()});
 
-        const raw_input = stdin.reader().readUntilDelimiterOrEof(buffer[0..], '\n') catch |err| {
-            std.debug.print("error: cannot read from STDIN: {}\n", .{err});
-            return;
-        } orelse return;
-        const input = mem.trimRight(u8, raw_input, "\r\n");
-        if (mem.eql(u8, input, "\\q")) {
+        if (std.cstr.cmp(input, "\\q") == 0) {
             return;
         }
-        std.debug.print("Exec command '{}'\n", .{input});
-        db.exec(input);
+
+        var res = db.exec(input);
+        var status = res.status();
+        switch (status) {
+            pq.ExecStatusType.PGRES_TUPLES_OK => {
+                std.debug.print("OK\n", .{});
+            },
+            else => std.debug.print("Status: {}\n", .{status}),
+        }
     }
 }
