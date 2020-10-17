@@ -15,7 +15,7 @@ pub fn read() c_string {
     const input = stdin.reader().readUntilDelimiterOrEof(cmdBuffer[0..], '\n') catch |err| {
         std.debug.print("error: read from STDIN: {}\n", .{err});
         return "";
-    };
+    } orelse return "";
     return cmdBuffer[0..];
 }
 

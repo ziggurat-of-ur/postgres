@@ -1,6 +1,7 @@
 // std
 const std = @import("std");
-const cstr = std.cstr;
+
+const c_string = [*:0]const u8;
 
 // clap for CLI args
 const clap = @import("clap");
@@ -45,24 +46,64 @@ pub fn main() anyerror!void {
 
     var params = try getParams();
     var dsn = try params.dsn();
-    var db = pq.connect(dsn);
+    var db = pq.connect(dsn) orelse {
+        std.debug.print("Error connecting to db {}", .{dsn});
+        return;
+    };
     var db_name = db.name();
 
     // just loop forever, getting a command, executing it, and then quitting when the user types \q
     while (true) {
         var input = try cmd.prompt("ZSQL ({}): ", .{db.name()});
 
-        if (std.cstr.cmp(input, "\\q") == 0) {
+        if (hasPrefix("\\q", input)) {
             return;
+        }
+        if (hasPrefix("\\c ", input)) {
+            const len = std.mem.len(input);
+            params.dbname = input[3..len];
+            dsn = try params.dsn();
+            db = pq.connect(dsn) orelse {
+                std.debug.print("Error connecting to db {}", .{dsn});
+                return;
+            };
+            std.debug.print("new connection {}\n", .{db});
+            continue;
         }
 
         var res = db.exec(input);
         var status = res.status();
         switch (status) {
             pq.ExecStatusType.PGRES_TUPLES_OK => {
+                const tuples = res.numTuples();
+                const flds = res.numFields();
+                var i: u8 = 0;
+                var fld: u8 = 0;
+                while (fld < flds) : (fld += 1) {
+                    std.debug.print("{} ", .{res.fieldName(fld)});
+                }
+                std.debug.print("\n------------------------------------------------------------------\n", .{});
+                while (i < tuples) : (i += 1) {
+                    fld = 0;
+                    while (fld < flds) : (fld += 1) {
+                        std.debug.print("{} ", .{res.get(i, fld)});
+                    }
+                    std.debug.print("\n", .{});
+                }
+                std.debug.print("Status: {}\n", .{res.cmdStatus()});
                 std.debug.print("OK\n", .{});
             },
             else => std.debug.print("Status: {}\n", .{status}),
         }
+        res.clear();
     }
+}
+
+fn hasPrefix(needle: c_string, haystack: c_string) bool {
+    var index: usize = 0;
+    while (needle[index] == haystack[index] and needle[index] != 0) : (index += 1) {}
+    if (needle[index] == 0) {
+        return true;
+    }
+    return false;
 }

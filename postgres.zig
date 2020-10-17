@@ -40,6 +40,50 @@ pub const result = opaque {
     pub fn status(res: *result) ExecStatusType {
         return @intToEnum(ExecStatusType, PQresultStatus(res));
     }
+
+    extern fn PQcmdStatus(PGresult: *result) c_string;
+    pub fn cmdStatus(res: *result) c_string {
+        return PQcmdStatus(res);
+    }
+
+    extern fn PQcmdTuples(PGresult: *result) c_string;
+    pub fn cmdTuples(res: *result) c_string {
+        return PQcmdTuples(res);
+    }
+
+    extern fn PQclear(PGresult: *result) void;
+    pub fn clear(res: *result) void {
+        PQclear(res);
+    }
+
+    extern fn PQntuples(PGresult: *result) u8;
+    pub fn numTuples(res: *result) u8 {
+        return PQntuples(res);
+    }
+
+    extern fn PQnfields(PGresult: *result) u8;
+    pub fn numFields(res: *result) u8 {
+        return PQnfields(res);
+    }
+
+    extern fn PQfname(PGresult: *result, fld: u8) c_string;
+    pub fn fieldName(res: *result, fld: u8) c_string {
+        return PQfname(res, fld);
+    }
+
+    extern fn PQfnumber(PGresult: *result, fld: c_string) u8;
+    pub fn fieldNumber(res: *result, fld: c_string) u8 {
+        return PQfnumber(res, fld);
+    }
+
+    extern fn PQgetvalue(PGresult: *result, row: u8, col: u8) c_string;
+    pub fn get(res: *result, row: u8, col: u8) c_string {
+        return PQgetvalue(res, row, col);
+    }
+
+    //int PQgetisnull(const PGresult *res,
+    //int row_number,
+    //int column_number);
 };
 
 pub const DB = opaque {
@@ -55,7 +99,7 @@ pub const DB = opaque {
 };
 
 extern fn PQconnectdb(dsn: c_string) *DB;
-pub fn connect(dsn: c_string) *DB {
+pub fn connect(dsn: c_string) ?*DB {
     var conn = PQconnectdb(dsn);
     return conn;
 }
